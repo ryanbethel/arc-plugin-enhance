@@ -70,7 +70,6 @@ export default async function api (options, req) {
     // only import if the module exists and only run if export equals httpMethod
     let mod
     try {
-      console.log('apiPath', apiPath)
       if (apiPath.startsWith('http')){
         mod = await import(apiPath)
       }
