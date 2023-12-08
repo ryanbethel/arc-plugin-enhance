@@ -1,4 +1,5 @@
 import path from 'path'
+import joinUrl from './_join-url.mjs'
 
 /** helper to get page element name */
 //
@@ -23,7 +24,13 @@ export default function getPageName (basePath, template) {
 
 /** serialize template name to element name */
 function fmt (basePath, templatePath) {
-  let base = path.join(basePath, 'pages')
+  let base
+  if (basePath.startsWith('http')) {
+    base = joinUrl(basePath, 'pages')
+  }
+  else {
+    base = path.join(basePath, 'pages')
+  }
   let raw = templatePath.replace(base, '')
     .replace(/\.mjs/g, '')
     .replace(path.sep, '')

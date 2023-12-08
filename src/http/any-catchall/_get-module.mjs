@@ -11,7 +11,7 @@ import clean from './_clean.mjs'
 const cache = {}
 
 /** helper to get module for given folder/route */
-export default function getModule (basePath, folder, route) {
+export default async function getModule (basePath, folder, route) {
   if (!cache[basePath])
     cache[basePath] = {}
 
@@ -20,10 +20,21 @@ export default function getModule (basePath, folder, route) {
 
   if (!cache[basePath][folder][route]) {
 
-    let raw = getFiles(basePath, folder).sort(sort)
-    let base = path.join(basePath, folder)
-    let basePathname = pathToFileURL(base).pathname
-    let copy = raw.slice(0).map(p => pathToFileURL(p).pathname).map(p => clean({ pathTmpl: p, base: basePathname, fileNameRegEx: /index\.html|index\.mjs|\.mjs|\.html/ })).map(p => pathToRegexp(p))
+    let raw = (await getFiles(basePath, folder)).sort(sort)
+    let copy
+
+    if (basePath.startsWith('http')) {
+      let base = joinUrlParts(basePath, folder)
+      let basePathname = base
+      copy = raw.slice(0)
+        .map(p => clean({ pathTmpl: p, base: basePathname, fileNameRegEx: /index\.html|index\.mjs|\.mjs|\.html/ }))
+        .map(p => pathToRegexp(p))
+    }
+    else {
+      let base = path.join(basePath, folder)
+      let basePathname = pathToFileURL(base).pathname
+      copy = raw.slice(0).map(p => pathToFileURL(p).pathname).map(p => clean({ pathTmpl: p, base: basePathname, fileNameRegEx: /index\.html|index\.mjs|\.mjs|\.html/ })).map(p => pathToRegexp(p))
+    }
 
     let index = 0
     let found = false
@@ -39,7 +50,14 @@ export default function getModule (basePath, folder, route) {
     if (found) {
       cache[basePath][folder][route] = found
     }
+
   }
 
   return cache[basePath][folder][route] || false
+}
+
+function joinUrlParts (part1, part2) {
+  const trimmedPart1 = part1.replace(/\/+$/, '')
+  const trimmedPart2 = part2.replace(/^\/+/, '')
+  return trimmedPart1 + '/' + trimmedPart2
 }

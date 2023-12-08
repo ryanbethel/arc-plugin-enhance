@@ -20,8 +20,8 @@ import { brotliDecompressSync, gunzipSync } from 'zlib'
 export default async function api (options, req) {
   let { basePath, altPath } = options
 
-  let apiPath = getModule(basePath, 'api', req.rawPath)
-  let pagePath = getModule(basePath, 'pages', req.rawPath)
+  let apiPath = await getModule(basePath, 'api', req.rawPath)
+  let pagePath = await getModule(basePath, 'pages', req.rawPath)
   let apiBaseUsed = basePath
   let pageBaseUsed = basePath
 
@@ -29,8 +29,8 @@ export default async function api (options, req) {
     let apiPathPart = apiPath && apiPath.replace(path.join(basePath, 'api'), '')
     let pagePathPart = pagePath && pagePath.replace(path.join(basePath, 'pages'), '')
 
-    let altApiPath = getModule(altPath, 'api', req.rawPath)
-    let altPagePath = getModule(altPath, 'pages', req.rawPath)
+    let altApiPath = await getModule(altPath, 'api', req.rawPath)
+    let altPagePath = await getModule(altPath, 'pages', req.rawPath)
     let altApiPathPart = altApiPath && altApiPath.replace(path.join(altPath, 'api'), '')
     let altPagePathPart = altPagePath && altPagePath.replace(path.join(altPath, 'pages'), '')
     if (!apiPath && altApiPath) {
@@ -70,7 +70,13 @@ export default async function api (options, req) {
     // only import if the module exists and only run if export equals httpMethod
     let mod
     try {
-      mod = await import(pathToFileURL(apiPath).href)
+      console.log('apiPath', apiPath)
+      if (apiPath.startsWith('http')){
+        mod = await import(apiPath)
+      }
+      else {
+        mod = await import(pathToFileURL(apiPath).href)
+      }
     }
     catch (error) {
       throw new Error(`Issue when trying to import API: ${apiPath}`, { cause: error })
@@ -159,12 +165,24 @@ export default async function api (options, req) {
     if (!pagePath || state.code === 404 || state.status === 404 || state.statusCode === 404) {
       let status = 404
       let error = `${req.rawPath} not found`
-      let fourOhFour = getModule(basePath, 'pages', '/404')
-      if (altPath && !fourOhFour) fourOhFour = getModule(altPath, 'pages', '/404')
+      let fourOhFour = await getModule(basePath, 'pages', '/404')
+      if (altPath && !fourOhFour) fourOhFour = await getModule(altPath, 'pages', '/404')
       let body = ''
       if (fourOhFour && fourOhFour.includes('.html')) {
-        let raw = read(fourOhFour).toString()
-        body = html`${head({ req, status, error, store })}${raw}`
+        if (fourOhFour.startsWith('http')){
+          try {
+            const result = await fetch(fourOhFour)
+            raw = await result.text()
+            body = html`${head({ req, status, error, store })}${raw}`
+          }
+          catch (err) {
+            console.log(err)
+          }
+        }
+        else {
+          let raw = read(fourOhFour).toString()
+          body = html`${head({ req, status, error, store })}${raw}`
+        }
       }
       else {
         body = html`${head({ req, status, error, store })}<page-404 error="${error}"></page-404>`
@@ -177,8 +195,20 @@ export default async function api (options, req) {
     let res = {}
     let error = false
     if (pagePath.includes('.html')) {
-      let raw = read(pagePath).toString()
-      res.html = html`${head({ req, status, error, store })}${raw}`
+      if (pagePath.startsWith('http')){
+        try {
+          const result = await fetch(pagePath)
+          let raw = await result.text()
+          res.html = html`${head({ req, status, error, store })}${raw}`
+        }
+        catch (err) {
+          console.log(err)
+        }
+      }
+      else {
+        let raw = read(pagePath).toString()
+        res.html = html`${head({ req, status, error, store })}${raw}`
+      }
     }
     else {
       let tag = getPageName(pageBaseUsed, pagePath)
@@ -198,12 +228,24 @@ export default async function api (options, req) {
     let status = 500
     let error = err.stack
     console.error(err)
-    let fiveHundred = getModule(basePath, 'pages', '/500')
-    if (altPath && !fiveHundred) fiveHundred = getModule(altPath, 'pages', '/500')
+    let fiveHundred = await getModule(basePath, 'pages', '/500')
+    if (altPath && !fiveHundred) fiveHundred = await getModule(altPath, 'pages', '/500')
     let body = ''
     if (fiveHundred && fiveHundred.includes('.html')) {
-      let raw = read(fiveHundred).toString()
-      body = html`${head({ req, status, error, store })}${raw}`
+      if (fiveHundred.startsWith('http')){
+        try {
+          const result = await fetch(fiveHundred)
+          let raw = await result.text()
+          body = html`${head({ req, status, error, store })}${raw}`
+        }
+        catch (err) {
+          console.log(err)
+        }
+      }
+      else {
+        let raw = read(fiveHundred).toString()
+        body = html`${head({ req, status, error, store })}${raw}`
+      }
     }
     else {
       body = html`${head({ req, status, error, store })}<page-500 error="${error}"></page-500>`

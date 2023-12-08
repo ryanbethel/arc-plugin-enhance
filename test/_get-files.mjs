@@ -12,4 +12,3 @@ test('getFiles', async t => {
   let truthy = results.filter(Boolean)
   t.ok(truthy.length === results.length, 'got filtered list')
 })
-

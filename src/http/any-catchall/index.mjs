@@ -8,7 +8,8 @@ export function createRouter (base) {
     let here = path.dirname(url.fileURLToPath(import.meta.url))
     base = path.join(here, 'node_modules', '@architect', 'views')
   }
-  return arc.http.async(router.bind({}, { basePath: base }))
+  // return arc.http.async(router.bind({}, { basePath: base }))
+  return arc.http.async(router.bind({}, { basePath: 'http://localhost:3333/_public/app/' }))
 }
 
 export const handler = createRouter()

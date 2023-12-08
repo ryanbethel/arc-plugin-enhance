@@ -1,6 +1,7 @@
 import { join } from 'path'
 import { pathToFileURL } from 'url'
 import { existsSync as exists } from 'fs'
+import joinUrl from './_join-url.mjs'
 
 import getFiles from './_get-files.mjs'
 import getPageName from './_get-page-name.mjs'
@@ -15,80 +16,164 @@ import _head from './templates/head.mjs'
  * - TODO can run a command to generate it based on app/elements
  */
 export default async function getElements (basePath) {
-  let pathToModule = join(basePath, 'elements.mjs')
-  let pathToPages = join(basePath, 'pages')
-  let pathToElements = join(basePath, 'elements')
-  let pathToHead = join(basePath, 'head.mjs')
-
-  // generate elements manifest
-  let els = {}
-
-  // Load head element
   let head
-  if (exists(pathToHead) === false) {
-    head = _head
+  let els = {}
+  if (basePath.startsWith('http')){
+    let pathToModule = joinUrl(basePath, 'elements.mjs')
+    let pathToPages = joinUrl(basePath, 'pages')
+    let pathToElements = joinUrl(basePath, 'elements')
+    let pathToHead = joinUrl(basePath, 'head.mjs')
+
+    let projectManifest
+    try {
+      projectManifest = (await import(joinUrl(basePath, 'project-manifest.mjs'))).manifest
+    }
+    catch (e){
+      throw new Error('Could not find project manifest')
+    }
+
+
+    // Load head element
+    if (!projectManifest.includes(pathToHead)) {
+      head = _head
+    }
+    else {
+      try {
+        head = (await import(pathToHead)).default
+      }
+      catch (error) {
+        throw new Error('Issue when trying to import head file.', { cause: error })
+      }
+    }
+
+    if (projectManifest.includes(pathToModule)) {
+    // read explicit elements manifest
+      let mod
+      let href = pathToModule
+      try {
+        mod = await import(href)
+        els = mod.default
+      }
+      catch (error) {
+        throw new Error('Issue when trying to import elements manifest.', { cause: error })
+      }
+    }
+
+    // look for pages
+    if (projectManifest.filter(p => p.startsWith(pathToPages)).length) {
+      // read all the pages
+      let pages = (await getFiles(basePath, 'pages')).filter(f => f.endsWith('.mjs'))
+      for (let p of pages) {
+        let tag = await getPageName(basePath, p)
+        let mod
+        try {
+          mod = await import(p)
+          els['page-' + tag] = mod.default
+        }
+        catch (error) {
+          throw new Error(`Issue when trying to import page: ${p}`, { cause: error })
+        }
+      }
+    }
+
+    if (projectManifest.filter(p => p.startsWith(pathToElements)).length) {
+      let elementsURL = pathToElements
+      // read all the elements
+      let files = (await getFiles(basePath, 'elements')).filter(f => f.endsWith('.mjs'))
+      for (let e of files) {
+      // turn foo/bar.mjs into foo-bar to make sure we have a legit tag name
+        const fileURL = e
+        let tag = fileURL.replace(elementsURL, '').slice(1).replace(/.mjs$/, '').replace(/\//g, '-')
+        if (/^[a-z][a-z0-9-]*$/.test(tag) === false) {
+          throw Error(`Illegal element name "${tag}" must be lowercase alphanumeric dash`)
+        }
+        // import the element and add to the map
+        let mod
+        try {
+          mod = await import(fileURL)
+          els[tag] = mod.default
+        }
+        catch (error) {
+          throw new Error(`Issue importing element: ${e}`, { cause: error })
+        }
+      }
+    }
+
   }
   else {
-    try {
-      head = (await import(pathToFileURL(pathToHead).href)).default
-    }
-    catch (error) {
-      throw new Error('Issue when trying to import head file.', { cause: error })
-    }
-  }
+    let pathToModule = join(basePath, 'elements.mjs')
+    let pathToPages = join(basePath, 'pages')
+    let pathToElements = join(basePath, 'elements')
+    let pathToHead = join(basePath, 'head.mjs')
 
-  if (exists(pathToModule)) {
+
+    // Load head element
+    if (exists(pathToHead) === false) {
+      head = _head
+    }
+    else {
+      try {
+        head = (await import(pathToFileURL(pathToHead).href)).default
+      }
+      catch (error) {
+        throw new Error('Issue when trying to import head file.', { cause: error })
+      }
+    }
+
+    if (exists(pathToModule)) {
     // read explicit elements manifest
-    let mod
-    let href = pathToFileURL(pathToModule).href
-    try {
-      mod = await import(href)
-      els = mod.default
-    }
-    catch (error) {
-      throw new Error('Issue when trying to import elements manifest.', { cause: error })
-    }
-  }
-
-  // look for pages
-  if (exists(pathToPages)) {
-
-    // read all the pages
-    let pages = getFiles(basePath, 'pages').filter(f => f.endsWith('.mjs'))
-    for (let p of pages) {
-      let tag = await getPageName(basePath, p)
       let mod
+      let href = pathToFileURL(pathToModule).href
       try {
-        mod = await import(pathToFileURL(p).href)
-        els['page-' + tag] = mod.default
+        mod = await import(href)
+        els = mod.default
       }
       catch (error) {
-        throw new Error(`Issue when trying to import page: ${p}`, { cause: error })
+        throw new Error('Issue when trying to import elements manifest.', { cause: error })
       }
     }
-  }
 
-  if (exists(pathToElements)) {
-    let elementsURL = pathToFileURL(join(basePath, 'elements'))
-    // read all the elements
-    let files = getFiles(basePath, 'elements').filter(f => f.endsWith('.mjs'))
-    for (let e of files) {
+    // look for pages
+    if (exists(pathToPages)) {
+
+      // read all the pages
+      let pages = (await getFiles(basePath, 'pages')).filter(f => f.endsWith('.mjs'))
+      for (let p of pages) {
+        let tag = await getPageName(basePath, p)
+        let mod
+        try {
+          mod = await import(pathToFileURL(p).href)
+          els['page-' + tag] = mod.default
+        }
+        catch (error) {
+          throw new Error(`Issue when trying to import page: ${p}`, { cause: error })
+        }
+      }
+    }
+
+    if (exists(pathToElements)) {
+      let elementsURL = pathToFileURL(join(basePath, 'elements'))
+      // read all the elements
+      let files = (await getFiles(basePath, 'elements')).filter(f => f.endsWith('.mjs'))
+      for (let e of files) {
       // turn foo/bar.mjs into foo-bar to make sure we have a legit tag name
-      const fileURL = pathToFileURL(e)
-      let tag = fileURL.pathname.replace(elementsURL.pathname, '').slice(1).replace(/.mjs$/, '').replace(/\//g, '-')
-      if (/^[a-z][a-z0-9-]*$/.test(tag) === false) {
-        throw Error(`Illegal element name "${tag}" must be lowercase alphanumeric dash`)
-      }
-      // import the element and add to the map
-      let mod
-      try {
-        mod = await import(fileURL.href)
-        els[tag] = mod.default
-      }
-      catch (error) {
-        throw new Error(`Issue importing element: ${e}`, { cause: error })
+        const fileURL = pathToFileURL(e)
+        let tag = fileURL.pathname.replace(elementsURL.pathname, '').slice(1).replace(/.mjs$/, '').replace(/\//g, '-')
+        if (/^[a-z][a-z0-9-]*$/.test(tag) === false) {
+          throw Error(`Illegal element name "${tag}" must be lowercase alphanumeric dash`)
+        }
+        // import the element and add to the map
+        let mod
+        try {
+          mod = await import(fileURL.href)
+          els[tag] = mod.default
+        }
+        catch (error) {
+          throw new Error(`Issue importing element: ${e}`, { cause: error })
+        }
       }
     }
+
   }
 
   if (!els['page-404'])

@@ -1,4 +1,5 @@
 import path from 'path'
+import joinUrl from './_join-url.mjs'
 
 import { pathToRegexp } from 'path-to-regexp'
 import clean from './_clean.mjs'
@@ -10,7 +11,13 @@ export default function backfill (basePath, apiPath, pagePath, req) {
   let { params, ...copy } = { ...req }
 
   // get the regexp for the given path
-  let base = apiPath ? path.join(basePath, 'api') : path.join(basePath, 'pages')
+  let base
+  if (apiPath?.startsWith('http')) {
+    base = apiPath ? joinUrl(basePath, 'api') : joinUrl(basePath, 'pages')
+  }
+  else {
+    base = apiPath ? path.join(basePath, 'api') : path.join(basePath, 'pages')
+  }
   let tmpl = apiPath ? apiPath : pagePath
 
   tmpl = clean({ pathTmpl: tmpl, base, fileNameRegEx: /index\.mjs|\.mjs/ })
