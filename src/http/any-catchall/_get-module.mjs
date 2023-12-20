@@ -44,18 +44,9 @@ export default async function getModule ({ basePath, folder, route, projectMap }
     let raw = (await getFiles({ basePath, folder, projectMap })).sort(sort)
     let copy
 
-    // if (basePath.startsWith('http')) {
-    //   let base = joinUrlParts(basePath, folder)
-    //   let basePathname = base
-    //   copy = raw.slice(0)
-    //     .map(p => clean({ pathTmpl: p, base: basePathname, fileNameRegEx: /index\.html|index\.mjs|\.mjs|\.html/ }))
-    //     .map(p => pathToRegexp(p))
-    // }
-    // else {
     let base = path.join(basePath, folder)
     let basePathname = pathToFileURL(base).pathname
     copy = raw.slice(0).map(p => pathToFileURL(p).pathname).map(p => clean({ pathTmpl: p, base: basePathname, fileNameRegEx: /index\.html|index\.mjs|\.mjs|\.html/ })).map(p => pathToRegexp(p))
-    // }
 
     let index = 0
     let found = false

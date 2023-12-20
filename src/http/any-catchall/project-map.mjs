@@ -16,11 +16,11 @@ export const projectMap = {
       type: 'javascript',
       ref: "data:text/javascript, export async function get() { return { json:{ message:'contact api'} } } " },
   },
-  // head: {
-  //   loader: 'network',
-  //   type: 'html',
-  //   ref: 'http://localhost:3333/_public/repl-store/123/app/pages/index.html',
-  // },
+  head: {
+    loader: 'network',
+    type: 'javascript',
+    ref: 'http://localhost:3333/_public/repl-store/xyz/app/head.mjs',
+  },
   pages: {
     // 'app/pages/about.html': { type: 'local', path: '/User/path/app/pages/about.html' },
     'app/pages/about.mjs': {
@@ -41,7 +41,10 @@ export const projectMap = {
       type: 'javascript',
       ref: 'data:text/javascript, export default function two({html}) { return html`<div>two</div>` } ' },
   },
-  // elements: {
-  //   'app/elements/my-header.html': { type: 'network', path: 'http://localhost:3333/_public/repl-store/123/app/elements/my-header.mjs' },
-  // },
+  elements: {
+    'app/elements/my-header.mjs': {
+      loader: 'network',
+      type: 'javascript',
+      ref: 'http://localhost:3333/_public/repl-store/xyz/app/elements/my-header.mjs' },
+  },
 }

@@ -39,5 +39,5 @@ test('getModules no api', async t => {
   let folder = 'api'
   let expected = false
   let result = await getModule({ basePath: base, folder, route: '/' })
-  t.equal(expected, result.ref, 'No api')
+  t.equal(expected, result, 'No api')
 })

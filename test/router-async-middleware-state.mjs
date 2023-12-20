@@ -20,7 +20,6 @@ test('middleware parsed json state happens', async t => {
   let stuff = JSON.parse(res.body).stuff
   t.ok(Array.isArray(stuff), 'stuff')
   t.ok(stuff[0] === 1, 'stuff[0] is 1')
-  console.log(stuff)
 })
 
 test('middleware parsed json state passes thru to html render', async t => {
@@ -40,7 +39,6 @@ test('middleware parsed json state passes thru to html render', async t => {
   let r = new RegExp('<pre[^>]*>(.*?)</pre>')
   let s = res.html.replace(/\n/g, '').match(r)[1]
   let j = JSON.parse(s)
-  console.log(j)
   t.ok(Array.isArray(j.store.stuff), 'stuff')
   t.ok(j.store.stuff[0] === 1, 'stuff[0] is 1')
 })
