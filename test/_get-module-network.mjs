@@ -17,8 +17,8 @@ test('getModules network index', async t => {
   let base = 'http://localhost:3333/_public/app/'
   let folder = 'pages'
   let expected = 'http://localhost:3333/_public/app/pages/index.mjs'
-  let result = await getModule(base, folder, '/')
-  t.equal(expected, result, 'Got back index')
+  let result = await getModule({ basePath: base, folder, route: '/' })
+  t.equal(expected, result.ref, 'Got back index')
 })
 
 test('getModules network named', async t => {
@@ -26,8 +26,8 @@ test('getModules network named', async t => {
   let base = 'http://localhost:3333/_public/app/'
   let folder = 'api'
   let expected = 'http://localhost:3333/_public/app/api/about.mjs'
-  let result = await getModule(base, folder, '/about')
-  t.equal(expected, result, 'Got back about')
+  let result = await getModule({ basePath: base, folder, route: '/about' })
+  t.equal(expected, result.ref, 'Got back about')
 })
 
 

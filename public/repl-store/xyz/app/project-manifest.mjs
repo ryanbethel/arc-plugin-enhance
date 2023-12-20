@@ -1,0 +1,1 @@
+export const manifest = ["http://localhost:3333/_public/repl-store/xyz/app/pages/about.mjs","http://localhost:3333/_public/repl-store/xyz/app/elements/my-header.mjs","http://localhost:3333/_public/repl-store/xyz/app/api/index.mjs"]

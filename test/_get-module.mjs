@@ -9,8 +9,8 @@ test('getModules', async t => {
   let base = path.join(__dirname, '..', 'app')
   let folder = 'pages'
   let expected = path.join(base, folder, 'index.html')
-  let result = await getModule(base, folder, '/')
-  t.equal(expected, result, 'Got back index')
+  let result = await getModule({ basePath: base, folder, route: '/' })
+  t.equal(expected, result.ref, 'Got back index')
 })
 
 test('getModules multiple params', async t => {
@@ -19,8 +19,8 @@ test('getModules multiple params', async t => {
   let folder = 'api/foo/$first/bar/$second/baz'
   let file = '$third.mjs'
   let expected = path.join(base, folder, file)
-  let result = await getModule(base,  'api', '/foo/7/bar/8/baz/9')
-  t.equal(expected, result, 'Got the api with multiple params')
+  let result = await getModule({ basePath: base,  folder: 'api', route: '/foo/7/bar/8/baz/9' })
+  t.equal(expected, result.ref, 'Got the api with multiple params')
 })
 
 test('getModules catchall', async t => {
@@ -29,8 +29,8 @@ test('getModules catchall', async t => {
   let folder = 'api/place/$id'
   let file = '$$.mjs'
   let expected = path.join(base, folder, file)
-  let result = await getModule(base, folder, '/place/anything/anywhere')
-  t.equal(expected, result, 'Got the catchall')
+  let result = await getModule({ basePath: base, folder, route: '/place/anything/anywhere' })
+  t.equal(expected, result.ref, 'Got the catchall')
 })
 
 test('getModules no api', async t => {
@@ -38,6 +38,6 @@ test('getModules no api', async t => {
   let base = path.join(process.cwd(), 'test', 'mock-apps', 'app')
   let folder = 'api'
   let expected = false
-  let result = await getModule(base, folder, '/')
-  t.equal(expected, result, 'No api')
+  let result = await getModule({ basePath: base, folder, route: '/' })
+  t.equal(expected, result.ref, 'No api')
 })

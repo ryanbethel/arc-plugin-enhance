@@ -2,6 +2,7 @@ import { join } from 'path'
 import { pathToFileURL } from 'url'
 import { existsSync as exists } from 'fs'
 import joinUrl from './_join-url.mjs'
+import loadJS from './_load-js.mjs'
 
 import getFiles from './_get-files.mjs'
 import getPageName from './_get-page-name.mjs'
@@ -15,10 +16,93 @@ import _head from './templates/head.mjs'
  * - TODO elements.mjs has key for each page
  * - TODO can run a command to generate it based on app/elements
  */
-export default async function getElements (basePath) {
+export default async function getElements ({ basePath, projectMap }) {
   let head
   let els = {}
-  if (basePath.startsWith('http')){
+  if (projectMap){
+    let pathToModule = joinUrl(basePath, 'elements.mjs')
+    let pathToPages = joinUrl(basePath, 'pages')
+    let pathToElements = joinUrl(basePath, 'elements')
+    let pathToHead = joinUrl(basePath, 'head.mjs')
+
+    // let projectManifest
+    // try {
+    //   projectManifest = (await import(joinUrl(basePath, 'project-manifest.mjs'))).manifest
+    // }
+    // catch (e){
+    //   throw new Error('Could not find project manifest')
+    // }
+
+
+    // Load head element
+    if (!projectMap.head) {
+      head = _head
+    }
+    else {
+      try {
+        head = (await loadJS(projectMap.head)).default
+      }
+      catch (error) {
+        throw new Error('Issue when trying to import head file.', { cause: error })
+      }
+    }
+
+    if (projectMap.elements?.['app/elements/elements.mjs']) {
+    // read explicit elements manifest
+      let mod
+      try {
+        mod = await loadJS(projectMap.elements?.['app/elements/elements.mjs'])
+        els = mod.default
+      }
+      catch (error) {
+        throw new Error('Issue when trying to import elements manifest.', { cause: error })
+      }
+    }
+
+    // look for JS pages
+    if (projectMap.pages){
+      // read all the pages
+      let pages = (await getFiles({ basePath, folder: 'pages', projectMap }))
+      let jsPages = Object.entries(pages).filter(f => f[0].endsWith('.mjs'))
+      for (let [ path, resource ] of jsPages) {
+        let tag = await getPageName('app', path)
+        let mod
+        try {
+          mod = await loadJS(resource)
+          els['page-' + tag] = mod.default
+        }
+        catch (error) {
+          throw new Error(`Issue when trying to import page: ${path}`, { cause: error })
+        }
+      }
+    }
+
+    if (projectMap.elements){
+      let elementsURL = 'app/elements/'
+      // read all the elements
+      let files = (await getFiles({ basePath, folder: 'elements', projectMap }))
+      let jsFiles = Object.entries(files).filter(f => f[0].endsWith('.mjs'))
+      for (let [ e, details ] of files) {
+      // turn foo/bar.mjs into foo-bar to make sure we have a legit tag name
+        const fileURL = e
+        let tag = fileURL.replace(elementsURL, '').slice(1).replace(/.mjs$/, '').replace(/\//g, '-')
+        if (/^[a-z][a-z0-9-]*$/.test(tag) === false) {
+          throw Error(`Illegal element name "${tag}" must be lowercase alphanumeric dash`)
+        }
+        // import the element and add to the map
+        let mod
+        try {
+          mod = await loadJS(details)
+          els[tag] = mod.default
+        }
+        catch (error) {
+          throw new Error(`Issue importing element: ${e}`, { cause: error })
+        }
+      }
+    }
+
+  }
+  else if (basePath.startsWith('http')){
     let pathToModule = joinUrl(basePath, 'elements.mjs')
     let pathToPages = joinUrl(basePath, 'pages')
     let pathToElements = joinUrl(basePath, 'elements')
@@ -137,7 +221,7 @@ export default async function getElements (basePath) {
     if (exists(pathToPages)) {
 
       // read all the pages
-      let pages = (await getFiles(basePath, 'pages')).filter(f => f.endsWith('.mjs'))
+      let pages = (await getFiles({ basePath, folder: 'pages', projectMap })).filter(f => f.endsWith('.mjs'))
       for (let p of pages) {
         let tag = await getPageName(basePath, p)
         let mod
@@ -154,7 +238,7 @@ export default async function getElements (basePath) {
     if (exists(pathToElements)) {
       let elementsURL = pathToFileURL(join(basePath, 'elements'))
       // read all the elements
-      let files = (await getFiles(basePath, 'elements')).filter(f => f.endsWith('.mjs'))
+      let files = (await getFiles({ basePath, folder: 'elements', projectMap })).filter(f => f.endsWith('.mjs'))
       for (let e of files) {
       // turn foo/bar.mjs into foo-bar to make sure we have a legit tag name
         const fileURL = pathToFileURL(e)

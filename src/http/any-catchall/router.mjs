@@ -1,4 +1,4 @@
-import { readFileSync as read } from 'fs'
+import { readFileSync as read, readFileSync } from 'fs'
 import { pathToFileURL } from 'url'
 
 import arc from '@architect/functions'
@@ -17,22 +17,42 @@ import compareRoute from './_sort-routes.mjs'
 import path from 'path'
 import { brotliDecompressSync, gunzipSync } from 'zlib'
 
-export default async function api (options, req) {
-  let { basePath, altPath } = options
+import loadJS from './_load-js.mjs'
+import loadHTML from './_load-html.mjs'
 
-  let apiPath = await getModule(basePath, 'api', req.rawPath)
-  let pagePath = await getModule(basePath, 'pages', req.rawPath)
+export default async function api (options, req) {
+  let { basePath, altPath, resourceMap } = options
+
+  let projectMap
+  if (resourceMap)  {
+    if (typeof resourceMap === 'string') {
+      if (resourceMap.startsWith('http')) {
+        projectMap = (await import(resourceMap)).default
+      }
+      else {
+        projectMap = (await import(pathToFileURL(resourceMap).href)).default
+      }
+    }
+    else {
+      projectMap = resourceMap
+    }
+    basePath = ''
+    altPath = ''
+  }
+
+  let apiPath = await getModule({ basePath, folder: 'api', route: req.rawPath, projectMap })
+  let pagePath = await getModule({ basePath, folder: 'pages', route: req.rawPath, projectMap })
   let apiBaseUsed = basePath
   let pageBaseUsed = basePath
 
   if (altPath) {
-    let apiPathPart = apiPath && apiPath.replace(path.join(basePath, 'api'), '')
-    let pagePathPart = pagePath && pagePath.replace(path.join(basePath, 'pages'), '')
+    let apiPathPart = apiPath && apiPath.path?.replace(path.join(basePath, 'api'), '')
+    let pagePathPart = pagePath && pagePath.path?.replace(path.join(basePath, 'pages'), '')
 
-    let altApiPath = await getModule(altPath, 'api', req.rawPath)
-    let altPagePath = await getModule(altPath, 'pages', req.rawPath)
-    let altApiPathPart = altApiPath && altApiPath.replace(path.join(altPath, 'api'), '')
-    let altPagePathPart = altPagePath && altPagePath.replace(path.join(altPath, 'pages'), '')
+    let altApiPath = await getModule({ basePath: altPath, folder: 'api', route: req.rawPath, projectMap })
+    let altPagePath = await getModule({ basePath: altPath, folder: 'pages', route: req.rawPath, projectMap })
+    let altApiPathPart = altApiPath && altApiPath.path.replace(path.join(altPath, 'api'), '')
+    let altPagePathPart = altPagePath && altPagePath.path.replace(path.join(altPath, 'pages'), '')
     if (!apiPath && altApiPath) {
       apiPath = altApiPath
       apiBaseUsed = altPath
@@ -55,8 +75,8 @@ export default async function api (options, req) {
   // (i.e. one is exact and one is a catchall)
   // only the most specific route will match
   if (apiPath && pagePath) {
-    let apiPathPart = apiPath.replace(path.join(apiBaseUsed, 'api'), '')
-    let pagePathPart = pagePath.replace(path.join(pageBaseUsed, 'pages'), '')
+    let apiPathPart = apiPath.path?.replace(path.join(apiBaseUsed, 'api'), '')
+    let pagePathPart = pagePath.path?.replace(path.join(pageBaseUsed, 'pages'), '')
     if (compareRoute(apiPathPart, pagePathPart) === 1) apiPath = false
     if (compareRoute(apiPathPart, pagePathPart) === -1) pagePath = false
   }
@@ -70,15 +90,10 @@ export default async function api (options, req) {
     // only import if the module exists and only run if export equals httpMethod
     let mod
     try {
-      if (apiPath.startsWith('http')){
-        mod = await import(apiPath)
-      }
-      else {
-        mod = await import(pathToFileURL(apiPath).href)
-      }
+      mod = await loadJS(apiPath)
     }
     catch (error) {
-      throw new Error(`Issue when trying to import API: ${apiPath}`, { cause: error })
+      throw new Error(`Issue when trying to import API: ${apiPath.path}`, { cause: error })
     }
 
     let method = mod[req.method.toLowerCase()]
@@ -88,10 +103,11 @@ export default async function api (options, req) {
     if (method) {
 
       // check to see if we need to modify the req and add in params
-      req.params = backfill(apiBaseUsed, apiPath, '', req)
+      // req.params = backfill(apiBaseUsed, apiPath.path, '', req)
+      req.params = backfill('app/', apiPath.path, '', req)
 
       // grab the state from the app/api route
-      let res = render.bind({}, apiBaseUsed)
+      let res = render.bind({}, { basePath: apiBaseUsed, resourceMap })
       state = await method(req, res)
 
       // if the api route does nothing backfill empty json response
@@ -113,7 +129,7 @@ export default async function api (options, req) {
       // - no corresponding page
       // - location has been explicitly passed
       let location = state.location || (state?.headers?.['location'] || state?.headers?.['Location'])
-      if (req.method.toLowerCase() != 'get' || !pagePath || location) {
+      if (req.method.toLowerCase() != 'get' || !pagePath.path || location) {
         return state
       }
 
@@ -134,9 +150,9 @@ export default async function api (options, req) {
   }
 
   // rendering an html page
-  let baseHeadElements = await getElements(basePath)
+  let baseHeadElements = await getElements({ basePath, projectMap })
   let altHeadElements = {}
-  if (altPath) altHeadElements = await getElements(altPath)
+  if (altPath) altHeadElements = await getElements({ basePath: altPath })
   let head = baseHeadElements.head || altHeadElements.head
   let elements = { ...altHeadElements.elements, ...baseHeadElements.elements }
 
@@ -164,24 +180,12 @@ export default async function api (options, req) {
     if (!pagePath || state.code === 404 || state.status === 404 || state.statusCode === 404) {
       let status = 404
       let error = `${req.rawPath} not found`
-      let fourOhFour = await getModule(basePath, 'pages', '/404')
-      if (altPath && !fourOhFour) fourOhFour = await getModule(altPath, 'pages', '/404')
+      let fourOhFour = await getModule({ basePath, folder: 'pages', route: '/404', projectMap })
+      if (altPath && !fourOhFour) fourOhFour = await getModule({ altPath, folder: 'pages', route: '/404', projectMap })
       let body = ''
-      if (fourOhFour && fourOhFour.includes('.html')) {
-        if (fourOhFour.startsWith('http')){
-          try {
-            const result = await fetch(fourOhFour)
-            raw = await result.text()
-            body = html`${head({ req, status, error, store })}${raw}`
-          }
-          catch (err) {
-            console.log(err)
-          }
-        }
-        else {
-          let raw = read(fourOhFour).toString()
-          body = html`${head({ req, status, error, store })}${raw}`
-        }
+      if (fourOhFour && fourOhFour.path?.endsWith('.html')) {
+        let raw = await loadHTML(fourOhFour)
+        body = html`${head({ req, status, error, store })}${raw}`
       }
       else {
         body = html`${head({ req, status, error, store })}<page-404 error="${error}"></page-404>`
@@ -193,24 +197,13 @@ export default async function api (options, req) {
     let status = state.status || state.code || state.statusCode || 200
     let res = {}
     let error = false
-    if (pagePath.includes('.html')) {
-      if (pagePath.startsWith('http')){
-        try {
-          const result = await fetch(pagePath)
-          let raw = await result.text()
-          res.html = html`${head({ req, status, error, store })}${raw}`
-        }
-        catch (err) {
-          console.log(err)
-        }
-      }
-      else {
-        let raw = read(pagePath).toString()
-        res.html = html`${head({ req, status, error, store })}${raw}`
-      }
+    if (pagePath.path?.endsWith('.html')) {
+      let raw = await loadHTML(pagePath)
+      res.html = html`${head({ req, status, error, store })}${raw}`
     }
     else {
-      let tag = getPageName(pageBaseUsed, pagePath)
+      // let tag = getPageName(pageBaseUsed, pagePath.path)
+      let tag = getPageName('app/', pagePath.path)
       res.html = html`${head({ req, status, error, store })}<page-${tag}></page-${tag}>`
     }
     res.statusCode = status
@@ -227,24 +220,12 @@ export default async function api (options, req) {
     let status = 500
     let error = err.stack
     console.error(err)
-    let fiveHundred = await getModule(basePath, 'pages', '/500')
-    if (altPath && !fiveHundred) fiveHundred = await getModule(altPath, 'pages', '/500')
+    let fiveHundred = await getModule({ basePath, folder: 'pages', route: '/500', projectMap })
+    if (altPath && !fiveHundred) fiveHundred = await getModule({ altPath, folder: 'pages', route: '/500', projectMap })
     let body = ''
-    if (fiveHundred && fiveHundred.includes('.html')) {
-      if (fiveHundred.startsWith('http')){
-        try {
-          const result = await fetch(fiveHundred)
-          let raw = await result.text()
-          body = html`${head({ req, status, error, store })}${raw}`
-        }
-        catch (err) {
-          console.log(err)
-        }
-      }
-      else {
-        let raw = read(fiveHundred).toString()
-        body = html`${head({ req, status, error, store })}${raw}`
-      }
+    if (fiveHundred && fiveHundred.path?.endsWith('.html')) {
+      let raw = await loadHTML(fiveHundred)
+      body = html`${head({ req, status, error, store })}${raw}`
     }
     else {
       body = html`${head({ req, status, error, store })}<page-500 error="${error}"></page-500>`
