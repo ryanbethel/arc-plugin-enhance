@@ -176,7 +176,5 @@ export default async function getElements ({ basePath, projectMap }) {
   if (!els['page-500'])
     els['page-500'] = _500
 
-  console.log('els', els)
-  console.log('head', head)
   return { head, elements: els }
 }
