@@ -164,6 +164,7 @@ export default async function api (options, req) {
   function html (str, ...values) {
     const _html = enhance({
       elements,
+      markSlots:true,
       scriptTransforms: [
         importTransform({ lookup: arc.static })
       ],
