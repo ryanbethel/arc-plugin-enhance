@@ -35,6 +35,7 @@
     "@architect/asap": "^7.0.4",
     "@architect/functions": "^8.0.1",
     "@begin/data": "^5.0.1",
+    "@enhance/arc-plugin-enhance": "github:ryanbethel/arc-plugin-enhance#mark-slots",
     "@enhance/arc-plugin-rollup": "^2.0.0",
     "@enhance/enhance-style-transform": "^0.1.2",
     "@enhance/import-transform": "^4.0.1",
